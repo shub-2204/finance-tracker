@@ -145,19 +145,19 @@ else:
 # -------------------------------
 # DAYS PENDING BY DEPARTMENT - SIDE BY SIDE
 # -------------------------------
-st.subheader("📊 Days Pending by Department")
+#***st.subheader("📊 Days Pending by Department")
 
-fig_dept = px.bar(
-    filtered_df, 
-    x='Department', 
-    y='Days Pending',
-    color='Current Status',
-    barmode='group',          # ← Side by side instead of stacked
-    title="Days Pending by Department (Side by Side View)",
-    text_auto=True
-)
+#fig_dept = px.bar(
+#    filtered_df, 
+#    x='Department', 
+##    y='Days Pending',
+ #   color='Current Status',
+ #   barmode='group',          # ← Side by side instead of stacked
+ #   title="Days Pending by Department (Side by Side View)",
+ #   text_auto=True
+#)
 
-st.plotly_chart(fig_dept, use_container_width=True)
+#st.plotly_chart(fig_dept, use_container_width=True)***
 # -------------------------------
 # OTHER CHARTS
 # -------------------------------
