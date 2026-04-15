@@ -174,7 +174,7 @@ st.plotly_chart(fig_status, use_container_width=True)
 # Critical Cases
 st.subheader("⚠️ Critical Cases Days exceeding 7")
 critical_df = filtered_df[
-    (filtered_df.get('Days Pending', 0) > 7) |
+    (filtered_df.get('Days Pending', 0) > 45) |
     (filtered_df.get('file Returned more than twice', pd.Series(dtype=str)) == 'Yes')
 ]
 
