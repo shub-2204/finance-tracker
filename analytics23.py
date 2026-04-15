@@ -172,7 +172,7 @@ fig_status = px.pie(filtered_df, names='Current Status', title="Overall Status D
 st.plotly_chart(fig_status, use_container_width=True)
 
 # Critical Cases
-st.subheader("⚠️ Critical Cases Days exceeding 7")
+st.subheader("⚠️ Critical Cases Days exceeding 45")
 critical_df = filtered_df[
     (filtered_df.get('Days Pending', 0) > 45) |
     (filtered_df.get('file Returned more than twice', pd.Series(dtype=str)) == 'Yes')
