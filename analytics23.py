@@ -38,7 +38,7 @@ for col in date_cols:
         df[col] = pd.to_datetime(df[col], errors='coerce')
 
 if 'Days Pending' in df.columns:
-    df['Days Pending'] = pd.to_numeric(df['Days Pending'], errors='coerce')
+    df['Days Pending'] = pd.to_numeric(df['Number of days pending from initial proposal'], errors='coerce')
 
 # -------------------------------
 # SIDEBAR FILTERS
