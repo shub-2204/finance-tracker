@@ -1,3 +1,7 @@
 streamlit
 pandas
 plotly
+fpdf
+io
+tempfile
+os
