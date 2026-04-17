@@ -46,7 +46,7 @@ if 'Days Pending' in df.columns:
 st.sidebar.header("Filters")
 
 dept_options = sorted(df['Department'].dropna().unique().tolist())
-status_options = sorted(df['Current Status'].dropna().unique().tolist())
+status_options = sorted(df['Current status'].dropna().unique().tolist())
 
 dept = st.sidebar.multiselect("Department", dept_options)
 status = st.sidebar.multiselect("Status", status_options)
