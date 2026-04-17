@@ -144,9 +144,11 @@ else:
 st.subheader("📈 General Charts")
 
 if 'Department' in filtered_df.columns:
-    fig_dept2 = px.bar(filtered_df, x='Department', y='Days Pending',
-                       color='Current status', title="Days Pending by Department")
-    st.plotly_chart(fig_dept2, use_container_width=True)
+    dept_chart_df2 = filtered_df[['Department', 'Days Pending', 'Current status']].dropna()
+    if not dept_chart_df2.empty:
+        fig_dept2 = px.bar(dept_chart_df2, x='Department', y='Days Pending',
+                           color='Current status', title="Days Pending by Department")
+        st.plotly_chart(fig_dept2, use_container_width=True)
 
 fig_status = px.pie(filtered_df, names='Current status', title="Overall Status Distribution")
 st.plotly_chart(fig_status, use_container_width=True)
@@ -229,7 +231,8 @@ def generate_pdf(filtered_df, total, pending_count, returned_count, avg_days):
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(3)
 
-    status_counts = filtered_df['Current Status'].value_counts().reset_index()
+    # ✅ FIXED: was 'Current Status', now 'Current status'
+    status_counts = filtered_df['Current status'].value_counts().reset_index()
     status_counts.columns = ['Status', 'Count']
 
     pdf.set_font("Helvetica", "B", 10)
@@ -313,7 +316,8 @@ def generate_pdf(filtered_df, total, pending_count, returned_count, avg_days):
     pdf.ln(3)
 
     if not critical_df.empty:
-        cols_to_show = ['Department', 'Current Status', 'Days Pending', 'Finance SSO']
+        # ✅ FIXED: was 'Current Status', now 'Current status'
+        cols_to_show = ['Department', 'Current status', 'Days Pending', 'Finance SSO']
         cols_to_show = [c for c in cols_to_show if c in critical_df.columns]
         col_width = 190 // len(cols_to_show)
 
