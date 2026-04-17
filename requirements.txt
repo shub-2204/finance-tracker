@@ -2,7 +2,3 @@ streamlit
 pandas
 plotly
 fpdf2
-io
-tempfile
-os
-FPDF
