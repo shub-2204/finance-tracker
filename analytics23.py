@@ -122,10 +122,21 @@ else:
 # -------------------------------
 st.subheader("📊 Days Pending by Department")
 
-fig_dept = px.bar(filtered_df, x='Department', y='Days Pending',
-                  color='Current Status', barmode='group',
-                  title="Days Pending by Department (Side by Side View)", text_auto=True)
-st.plotly_chart(fig_dept, use_container_width=True)
+dept_chart_df = filtered_df[['Department', 'Days Pending', 'Current Status']].dropna()
+
+if not dept_chart_df.empty:
+    fig_dept = px.bar(
+        dept_chart_df,
+        x='Department',
+        y='Days Pending',
+        color='Current Status',
+        barmode='group',
+        title="Days Pending by Department (Side by Side View)",
+        text_auto=True
+    )
+    st.plotly_chart(fig_dept, use_container_width=True)
+else:
+    st.warning("⚠️ No data available for this chart after removing empty rows.")
 
 # -------------------------------
 # OTHER CHARTS
