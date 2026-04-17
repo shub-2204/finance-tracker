@@ -122,7 +122,7 @@ else:
 # -------------------------------
 st.subheader("📊 Days Pending by Department")
 
-dept_chart_df = filtered_df[['Department', 'Days Pending', 'Current Status']].dropna()
+dept_chart_df = filtered_df[['Department', 'Days Pending', 'Current status']].dropna()
 
 if not dept_chart_df.empty:
     fig_dept = px.bar(
@@ -145,10 +145,10 @@ st.subheader("📈 General Charts")
 
 if 'Department' in filtered_df.columns:
     fig_dept2 = px.bar(filtered_df, x='Department', y='Days Pending',
-                       color='Current Status', title="Days Pending by Department")
+                       color='Current status', title="Days Pending by Department")
     st.plotly_chart(fig_dept2, use_container_width=True)
 
-fig_status = px.pie(filtered_df, names='Current Status', title="Overall Status Distribution")
+fig_status = px.pie(filtered_df, names='Current status', title="Overall Status Distribution")
 st.plotly_chart(fig_status, use_container_width=True)
 
 # -------------------------------
