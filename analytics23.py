@@ -59,7 +59,7 @@ filtered_df = df.copy()
 if dept:
     filtered_df = filtered_df[filtered_df['Department'].isin(dept)]
 if status:
-    filtered_df = filtered_df[filtered_df['Current Status'].isin(status)]
+    filtered_df = filtered_df[filtered_df['Current status'].isin(status)]
 
 if filtered_df.empty:
     st.warning("No records match your filters. Showing all data.")
@@ -73,8 +73,8 @@ st.title("📊 Work Monitoring Dashboard")
 col1, col2, col3, col4 = st.columns(4)
 
 total = len(filtered_df)
-pending_count = filtered_df['Current Status'].str.contains('Pending', case=False, na=False).sum()
-returned_count = filtered_df['Current Status'].str.contains('Returned', case=False, na=False).sum()
+pending_count = filtered_df['Current status'].str.contains('Pending', case=False, na=False).sum()
+returned_count = filtered_df['Current status'].str.contains('Returned', case=False, na=False).sum()
 avg_days = round(filtered_df['Days Pending'].mean(), 2) if 'Days Pending' in filtered_df.columns else 0
 
 col1.metric("Total Work", total)
