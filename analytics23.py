@@ -129,7 +129,7 @@ if not dept_chart_df.empty:
         dept_chart_df,
         x='Department',
         y='Days Pending',
-        color='Current Status',
+        color='Current status',
         barmode='group',
         title="Days Pending by Department (Side by Side View)",
         text_auto=True
