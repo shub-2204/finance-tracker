@@ -3,3 +3,4 @@ pandas
 plotly
 fpdf2
 weasyprint
+xhtml2pdf
