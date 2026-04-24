@@ -2,4 +2,4 @@ streamlit
 pandas
 plotly
 fpdf2
-xhtml2pdf
+
