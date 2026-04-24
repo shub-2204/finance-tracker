@@ -2,9 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from fpdf import FPDF
-import io
-import tempfile
-import os
+from datetime import datetime
 
 st.set_page_config(page_title="Work Monitoring Dashboard", layout="wide")
 
@@ -23,30 +21,34 @@ def load_data():
         return pd.DataFrame()
 
 df = load_data()
-
 if df.empty:
     st.stop()
 
 # -------------------------------
 # DATA CLEANING
 # -------------------------------
-df.columns = df.columns.str.strip()
+df.columns = df.columns.str.strip().str.replace(r'\s+', ' ', regex=True)
+
+DAYS_COL = "Number of days pending from initial proposal"
 
 date_cols = ['Work Received', 'Remarks Sent on', 'Compliance Rcvd']
 for col in date_cols:
     if col in df.columns:
         df[col] = pd.to_datetime(df[col], errors='coerce')
 
-if 'Days Pending' in df.columns:
-    df['Days Pending'] = pd.to_numeric(df['Number of days pending from initial proposal'], errors='coerce')
+if DAYS_COL in df.columns:
+    df[DAYS_COL] = pd.to_numeric(df[DAYS_COL], errors='coerce')
+else:
+    st.error(f"Column '{DAYS_COL}' not found in the data!")
+    st.stop()
 
 # -------------------------------
 # SIDEBAR FILTERS
 # -------------------------------
 st.sidebar.header("Filters")
 
-dept_options = sorted(df['Department'].dropna().unique().tolist())
-status_options = sorted(df['Current status'].dropna().unique().tolist())
+dept_options = sorted(df['Department'].dropna().unique().tolist()) if 'Department' in df.columns else []
+status_options = sorted(df['Current status'].dropna().unique().tolist()) if 'Current status' in df.columns else []
 
 dept = st.sidebar.multiselect("Department", dept_options)
 status = st.sidebar.multiselect("Status", status_options)
@@ -55,10 +57,9 @@ status = st.sidebar.multiselect("Status", status_options)
 # FILTERING
 # -------------------------------
 filtered_df = df.copy()
-
-if dept:
+if dept and 'Department' in filtered_df.columns:
     filtered_df = filtered_df[filtered_df['Department'].isin(dept)]
-if status:
+if status and 'Current status' in filtered_df.columns:
     filtered_df = filtered_df[filtered_df['Current status'].isin(status)]
 
 if filtered_df.empty:
@@ -73,9 +74,9 @@ st.title("📊 Work Monitoring Dashboard")
 col1, col2, col3, col4 = st.columns(4)
 
 total = len(filtered_df)
-pending_count = filtered_df['Current status'].str.contains('Pending', case=False, na=False).sum()
-returned_count = filtered_df['Current status'].str.contains('Returned', case=False, na=False).sum()
-avg_days = round(filtered_df['Days Pending'].mean(), 2) if 'Days Pending' in filtered_df.columns else 0
+pending_count = filtered_df.get('Current status', pd.Series()).str.contains('Pending', case=False, na=False).sum()
+returned_count = filtered_df.get('Current status', pd.Series()).str.contains('Returned', case=False, na=False).sum()
+avg_days = round(filtered_df[DAYS_COL].mean(), 2) if DAYS_COL in filtered_df.columns else 0
 
 col1.metric("Total Work", total)
 col2.metric("⏳ Pending Work", pending_count)
@@ -86,80 +87,42 @@ col4.metric("Avg Days Pending", avg_days)
 # FINANCE SSO ANALYSIS
 # -------------------------------
 st.subheader("💰 Finance SSO Analysis")
-
-ssO_col = "Finance SSO"
-
-if ssO_col in filtered_df.columns and not filtered_df[ssO_col].dropna().empty:
-    sso_count = filtered_df[ssO_col].value_counts().reset_index()
+sso_col = "Finance SSO"
+if sso_col in filtered_df.columns and not filtered_df[sso_col].dropna().empty:
+    sso_count = filtered_df[sso_col].value_counts().reset_index()
     sso_count.columns = ['Finance SSO', 'Count']
 
-    fig_bar = px.bar(
-        sso_count,
-        x='Finance SSO',
-        y='Count',
-        title="📊 Count of Work Items by Finance SSO",
-        color='Count',
-        color_continuous_scale='Plasma',
-        text='Count',
-        height=520
-    )
-    fig_bar.update_traces(textposition='outside', textfont_size=14,
-                          marker_line_color='white', marker_line_width=2)
-    fig_bar.update_layout(xaxis_title="Finance SSO", yaxis_title="Number of Work Items",
-                          xaxis_tickangle=-45, margin=dict(t=80, b=140, l=60, r=40),
-                          font=dict(size=13), plot_bgcolor='rgba(240,240,240,0.5)')
+    fig_bar = px.bar(sso_count, x='Finance SSO', y='Count', title="Count of Work Items by Finance SSO",
+                     text='Count', color='Count', color_continuous_scale='Plasma')
+    fig_bar.update_traces(textposition='outside')
     st.plotly_chart(fig_bar, use_container_width=True)
 
     fig_pie = px.pie(sso_count, names='Finance SSO', values='Count',
-                     title="🥧 Percentage Distribution by Finance SSO",
-                     hole=0.4, color_discrete_sequence=px.colors.qualitative.Bold)
+                     title="Percentage Distribution by Finance SSO", hole=0.4)
     st.plotly_chart(fig_pie, use_container_width=True)
 else:
-    st.warning(f"⚠️ Column **'{ssO_col}'** not found or contains no data.")
+    st.warning(f"Column '{sso_col}' not found or has no data.")
 
 # -------------------------------
 # DAYS PENDING BY DEPARTMENT
 # -------------------------------
-st.subheader("📊 Days Pending by Department")
-
-dept_chart_df = filtered_df[['Department', 'Days Pending', 'Current status']].dropna()
-
-if not dept_chart_df.empty:
-    fig_dept = px.bar(
-        dept_chart_df,
-        x='Department',
-        y='Days Pending',
-        color='Current status',
-        barmode='group',
-        title="Days Pending by Department (Side by Side View)",
-        text_auto=True
-    )
-    st.plotly_chart(fig_dept, use_container_width=True)
-else:
-    st.warning("⚠️ No data available for this chart after removing empty rows.")
-
 # -------------------------------
 # OTHER CHARTS
 # -------------------------------
 st.subheader("📈 General Charts")
 
-if 'Department' in filtered_df.columns:
-    dept_chart_df2 = filtered_df[['Department', 'Days Pending', 'Current status']].dropna()
-    if not dept_chart_df2.empty:
-        fig_dept2 = px.bar(dept_chart_df2, x='Department', y='Days Pending',
-                           color='Current status', title="Days Pending by Department")
-        st.plotly_chart(fig_dept2, use_container_width=True)
-
-fig_status = px.pie(filtered_df, names='Current status', title="Overall Status Distribution")
-st.plotly_chart(fig_status, use_container_width=True)
+if 'Current status' in filtered_df.columns:
+    fig_status = px.pie(filtered_df, names='Current status', title="Overall Status Distribution")
+    st.plotly_chart(fig_status, use_container_width=True)
 
 # -------------------------------
 # CRITICAL CASES
 # -------------------------------
-st.subheader("⚠️ Critical Cases Days exceeding 7")
+st.subheader("⚠️ Critical Cases (Days > 45 or Returned more than twice)")
+
 critical_df = filtered_df[
-    (filtered_df.get('Days Pending', 0) > 45) |
-    (filtered_df.get('file Returned more than twice', pd.Series(dtype=str)) == 'Yes')
+    (filtered_df.get(DAYS_COL, 0) > 45) |
+    (filtered_df.get('file Returned more than twice', '') == 'Yes')
 ]
 
 if not critical_df.empty:
@@ -174,193 +137,565 @@ st.subheader("📋 Full Data")
 st.dataframe(filtered_df, use_container_width=True)
 
 
-# ================================
-# PDF DOWNLOAD SECTION
-# ================================
+# ================================================================
+# PDF GENERATION — Clean HTML-based (no overlapping, wraps text)
+# ================================================================
 st.markdown("---")
 st.subheader("📥 Download Report as PDF")
 
 
-def generate_pdf(filtered_df, total, pending_count, returned_count, avg_days):
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
+def df_to_html_table(data: pd.DataFrame) -> str:
+    """Convert DataFrame to a clean, styled HTML table."""
+    if data.empty:
+        return "<p style='color:#888;font-style:italic;'>No records found.</p>"
 
-    # ---- Title ----
-    pdf.set_font("Helvetica", "B", 18)
-    pdf.set_fill_color(30, 30, 100)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(0, 14, "Work Monitoring Dashboard Report", ln=True, align="C", fill=True)
-    pdf.ln(4)
+    headers = "".join(
+        f"<th>{col}</th>" for col in data.columns
+    )
+    rows = ""
+    for i, (_, row) in enumerate(data.iterrows()):
+        bg = "#f0f4ff" if i % 2 == 0 else "#ffffff"
+        cells = "".join(
+            f"<td style='background:{bg};'>{'' if pd.isna(v) else str(v)}</td>"
+            for v in row
+        )
+        rows += f"<tr>{cells}</tr>"
 
-    # ---- Date ----
-    from datetime import datetime
-    pdf.set_font("Helvetica", "", 10)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 8, f"Generated on: {datetime.now().strftime('%d %B %Y, %I:%M %p')}", ln=True, align="R")
-    pdf.ln(4)
+    return f"<table><thead><tr>{headers}</tr></thead><tbody>{rows}</tbody></table>"
 
-    # ---- KPI Summary ----
-    pdf.set_font("Helvetica", "B", 13)
-    pdf.set_text_color(30, 30, 100)
-    pdf.cell(0, 10, "Summary Metrics", ln=True)
-    pdf.set_draw_color(30, 30, 100)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(3)
 
-    kpis = [
-        ("Total Work Items", str(total)),
-        ("Pending Work", str(pending_count)),
-        ("Returned", str(returned_count)),
-        ("Avg Days Pending", str(avg_days)),
-    ]
+'''def build_html_report(filtered_df, total, pending_count, returned_count, avg_days):
+    """Build a full A4-landscape HTML report with no overlapping."""
 
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(0, 0, 0)
-    for label, value in kpis:
-        pdf.set_fill_color(240, 240, 255)
-        pdf.cell(100, 9, f"  {label}", border=1, fill=True)
-        pdf.set_fill_color(220, 235, 255)
-        pdf.cell(90, 9, f"  {value}", border=1, ln=True, fill=True)
-    pdf.ln(6)
+    critical_df = filtered_df[
+        (filtered_df.get(DAYS_COL, pd.Series(dtype=float)) > 45) |
+        (filtered_df.get('file Returned more than twice', pd.Series(dtype=str)) == 'Yes')
+    ].copy()
 
-    # ---- Status Breakdown ----
-    pdf.set_font("Helvetica", "B", 13)
-    pdf.set_text_color(30, 30, 100)
-    pdf.cell(0, 10, "Status Breakdown", ln=True)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(3)
-
-    # ✅ FIXED: was 'Current Status', now 'Current status'
-    status_counts = filtered_df['Current status'].value_counts().reset_index()
-    status_counts.columns = ['Status', 'Count']
-
-    pdf.set_font("Helvetica", "B", 10)
-    pdf.set_fill_color(30, 30, 100)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(130, 9, "Status", border=1, fill=True)
-    pdf.cell(60, 9, "Count", border=1, ln=True, fill=True)
-
-    pdf.set_font("Helvetica", "", 10)
-    pdf.set_text_color(0, 0, 0)
-    for i, row in status_counts.iterrows():
-        fill = i % 2 == 0
-        pdf.set_fill_color(245, 245, 255) if fill else pdf.set_fill_color(255, 255, 255)
-        pdf.cell(130, 8, f"  {str(row['Status'])}", border=1, fill=True)
-        pdf.cell(60, 8, f"  {str(row['Count'])}", border=1, ln=True, fill=True)
-    pdf.ln(6)
-
-    # ---- Department Summary ----
-    if 'Department' in filtered_df.columns and 'Days Pending' in filtered_df.columns:
-        pdf.set_font("Helvetica", "B", 13)
-        pdf.set_text_color(30, 30, 100)
-        pdf.cell(0, 10, "Department Summary (Avg Days Pending)", ln=True)
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(3)
-
-        dept_summary = (
-            filtered_df.groupby('Department')['Days Pending']
-            .mean().round(2).reset_index()
-            .sort_values('Days Pending', ascending=False)
+    # KPI cards
+    def kpi(label, value, bg):
+        return (
+            f"<div class='kpi' style='background:{bg};'>"
+            f"<div class='kpi-value'>{value}</div>"
+            f"<div class='kpi-label'>{label}</div></div>"
         )
 
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.set_fill_color(30, 30, 100)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(130, 9, "Department", border=1, fill=True)
-        pdf.cell(60, 9, "Avg Days Pending", border=1, ln=True, fill=True)
+    kpi_row = (
+        "<div class='kpi-row'>"
+        + kpi("Total Work Items", total, "#e8eeff")
+        + kpi("Pending", pending_count, "#fff4e0")
+        + kpi("Returned", returned_count, "#e6ffe6")
+        + kpi("Avg Days Pending", avg_days, "#ffe8e8")
+        + "</div>"
+    )
 
-        pdf.set_font("Helvetica", "", 10)
-        pdf.set_text_color(0, 0, 0)
-        for i, row in dept_summary.iterrows():
-            fill = i % 2 == 0
-            pdf.set_fill_color(245, 245, 255) if fill else pdf.set_fill_color(255, 255, 255)
-            pdf.cell(130, 8, f"  {str(row['Department'])}", border=1, fill=True)
-            pdf.cell(60, 8, f"  {str(row['Days Pending'])}", border=1, ln=True, fill=True)
-        pdf.ln(6)
-
-    # ---- Finance SSO Summary ----
-    ssO_col = "Finance SSO"
-    if ssO_col in filtered_df.columns and not filtered_df[ssO_col].dropna().empty:
-        pdf.set_font("Helvetica", "B", 13)
-        pdf.set_text_color(30, 30, 100)
-        pdf.cell(0, 10, "Finance SSO Summary", ln=True)
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(3)
-
-        sso_count = filtered_df[ssO_col].value_counts().reset_index()
-        sso_count.columns = ['Finance SSO', 'Count']
-
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.set_fill_color(30, 30, 100)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(130, 9, "Finance SSO", border=1, fill=True)
-        pdf.cell(60, 9, "Count", border=1, ln=True, fill=True)
-
-        pdf.set_font("Helvetica", "", 10)
-        pdf.set_text_color(0, 0, 0)
-        for i, row in sso_count.iterrows():
-            fill = i % 2 == 0
-            pdf.set_fill_color(245, 245, 255) if fill else pdf.set_fill_color(255, 255, 255)
-            pdf.cell(130, 8, f"  {str(row['Finance SSO'])}", border=1, fill=True)
-            pdf.cell(60, 8, f"  {str(row['Count'])}", border=1, ln=True, fill=True)
-        pdf.ln(6)
-
-    # ---- Critical Cases ----
-    critical_df = filtered_df[filtered_df.get('Days Pending', pd.Series(dtype=float)) > 45]
-
-    pdf.set_font("Helvetica", "B", 13)
-    pdf.set_text_color(180, 0, 0)
-    pdf.cell(0, 10, f"Critical Cases (Days Pending > 45): {len(critical_df)}", ln=True)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(3)
-
-    if not critical_df.empty:
-        # ✅ FIXED: was 'Current Status', now 'Current status'
-        cols_to_show = ['Department', 'Current status', 'Days Pending', 'Finance SSO']
-        cols_to_show = [c for c in cols_to_show if c in critical_df.columns]
-        col_width = 190 // len(cols_to_show)
-
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.set_fill_color(180, 0, 0)
-        pdf.set_text_color(255, 255, 255)
-        for col in cols_to_show:
-            pdf.cell(col_width, 9, col[:20], border=1, fill=True)
-        pdf.ln()
-
-        pdf.set_font("Helvetica", "", 9)
-        pdf.set_text_color(0, 0, 0)
-        for i, row in critical_df[cols_to_show].head(30).iterrows():
-            fill = i % 2 == 0
-            pdf.set_fill_color(255, 230, 230) if fill else pdf.set_fill_color(255, 255, 255)
-            for col in cols_to_show:
-                pdf.cell(col_width, 8, str(row[col])[:20], border=1, fill=True)
-            pdf.ln()
+    # Status breakdown
+    if 'Current status' in filtered_df.columns:
+        status_tbl = df_to_html_table(
+            filtered_df['Current status'].value_counts()
+            .rename_axis('Status').reset_index(name='Count')
+        )
     else:
-        pdf.set_font("Helvetica", "", 11)
-        pdf.set_text_color(0, 150, 0)
-        pdf.cell(0, 9, "  No critical cases found.", ln=True)
+        status_tbl = "<p>No status data available.</p>"
 
-    # ---- Footer ----
-    pdf.set_y(-15)
-    pdf.set_font("Helvetica", "I", 8)
-    pdf.set_text_color(150, 150, 150)
-    pdf.cell(0, 10, "Work Monitoring Dashboard — Auto-generated Report", align="C")
+    # Department summary
+    if 'Department' in filtered_df.columns and DAYS_COL in filtered_df.columns:
+        dept_tbl = df_to_html_table(
+            filtered_df.groupby('Department')[DAYS_COL]
+            .agg(['mean', 'count']).round(2)
+            .rename(columns={'mean': 'Avg Days Pending', 'count': 'Total Cases'})
+            .sort_values('Avg Days Pending', ascending=False)
+            .reset_index()
+        )
+    else:
+        dept_tbl = "<p>No department data available.</p>"
 
-    return bytes(pdf.output())
+    # Finance SSO summary
+    if 'Finance SSO' in filtered_df.columns:
+        sso_tbl = df_to_html_table(
+            filtered_df['Finance SSO'].value_counts()
+            .rename_axis('Finance SSO').reset_index(name='Count')
+        )
+    else:
+        sso_tbl = "<p>No Finance SSO data available.</p>"
 
-
-if st.button("📄 Generate & Download PDF Report"):
-    with st.spinner("Generating PDF..."):
-        try:
-            pdf_bytes = generate_pdf(filtered_df, total, pending_count, returned_count, avg_days)
-            st.download_button(
-                label="⬇️ Click here to Download PDF",
-                data=pdf_bytes,
-                file_name="work_monitoring_report.pdf",
-                mime="application/pdf"
+    # Critical cases — one block per Finance SSO
+    if critical_df.empty:
+        critical_html = "<p style='color:green;font-weight:bold;'>✅ No critical cases found.</p>"
+    else:
+        critical_html = ""
+        sso_list = (
+            critical_df['Finance SSO'].dropna().unique().tolist()
+            if 'Finance SSO' in critical_df.columns else [None]
+        )
+        for sso in sso_list:
+            sso_data = (
+                critical_df[critical_df['Finance SSO'] == sso]
+                if sso is not None else critical_df
             )
-            st.success("✅ PDF ready! Click the button above to download.")
-        except Exception as e:
-            st.error(f"❌ Failed to generate PDF: {str(e)}")
-            st.info("Make sure fpdf2 is installed: pip install fpdf2")
+            label = sso if sso else "Unknown SSO"
+            critical_html += f"""
+            <div class="sso-block">
+              <h3 class="sso-title">Finance SSO: {label}
+                <span class="sso-count">({len(sso_data)} case{'s' if len(sso_data) != 1 else ''})</span>
+              </h3>
+              {df_to_html_table(sso_data)}
+            </div>"""
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {{
+    size: A3 landscape;
+    margin: 12mm 10mm;
+  }}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 9pt;
+    color: #222;
+  }}
+
+  /* ── Header ── */
+  .report-header {{
+    background: #1e3a8a;
+    color: white;
+    padding: 14px 20px;
+    border-radius: 6px;
+    margin-bottom: 14px;
+    text-align: center;
+  }}
+  .report-header h1 {{ font-size: 16pt; margin-bottom: 4px; }}
+  .report-header p  {{ font-size: 9pt; opacity: .85; }}
+
+  /* ── KPI row ── */
+  .kpi-row {{
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+  }}
+  .kpi {{
+    flex: 1;
+    border-radius: 6px;
+    padding: 12px;
+    text-align: center;
+    border: 1px solid #d0d7f0;
+  }}
+  .kpi-value {{ font-size: 18pt; font-weight: bold; color: #1e3a8a; }}
+  .kpi-label {{ font-size: 8pt; color: #555; margin-top: 4px; }}
+
+  /* ── Section headings ── */
+  .section {{
+    margin-top: 20px;
+    page-break-inside: avoid;
+  }}
+  .section h2 {{
+    font-size: 11pt;
+    color: #1e3a8a;
+    border-bottom: 2px solid #1e3a8a;
+    padding-bottom: 3px;
+    margin-bottom: 8px;
+  }}
+  .section-red h2 {{
+    color: #b91c1c;
+    border-color: #b91c1c;
+  }}
+
+  /* ── Tables ── */
+  table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8pt;
+    table-layout: auto;
+  }}
+  thead tr th {{
+    background: #1e3a8a;
+    color: white;
+    padding: 7px 8px;
+    border: 1px solid #1e3a8a;
+    text-align: left;
+    white-space: nowrap;
+  }}
+  tbody tr td {{
+    padding: 6px 8px;
+    border: 1px solid #d0d7f0;
+    vertical-align: top;
+    word-break: break-word;
+    max-width: 180px;
+  }}
+  tbody tr:hover td {{ background: #e8eeff !important; }}
+
+  /* ── SSO blocks (critical section) ── */
+  .sso-block {{
+    margin-top: 14px;
+    page-break-inside: avoid;
+  }}
+  .sso-title {{
+    font-size: 10pt;
+    color: #b91c1c;
+    margin-bottom: 5px;
+  }}
+  .sso-count {{
+    font-weight: normal;
+    font-size: 8.5pt;
+    color: #666;
+  }}
+
+  /* ── Footer ── */
+  .footer {{
+    margin-top: 30px;
+    text-align: center;
+    font-size: 7.5pt;
+    color: #aaa;
+    border-top: 1px solid #ddd;
+    padding-top: 6px;
+  }}
+</style>
+</head>
+<body>
+
+  <div class="report-header">
+    <h1>Work Monitoring Dashboard — Report</h1>
+    <p>Generated: {datetime.now().strftime('%d %B %Y, %I:%M %p')}</p>
+  </div>
+
+  {kpi_row}
+
+  <div class="section">
+    <h2>Status Breakdown</h2>
+    {status_tbl}
+  </div>
+
+  <div class="section">
+    <h2>Department Summary (Avg Days Pending)</h2>
+    {dept_tbl}
+  </div>
+
+  <div class="section">
+    <h2>Finance SSO Summary</h2>
+    {sso_tbl}
+  </div>
+
+  <div class="section section-red">
+    <h2>⚠️ Critical Cases (Days &gt; 45 or Returned Twice)</h2>
+    {critical_html}
+  </div>
+
+  <div class="footer">Work Monitoring Dashboard — Auto-generated Report</div>
+
+</body>
+</html>"""
+
+    return html'''
+
+
+
+def build_html_report(filtered_df, total, pending_count, returned_count, avg_days):
+
+    critical_df = filtered_df[
+        (filtered_df.get(DAYS_COL, pd.Series(dtype=float)) > 45) |
+        (filtered_df.get('file Returned more than twice', pd.Series(dtype=str)) == 'Yes')
+    ].copy()
+
+    def kpi(label, value, bg, accent, text_color):
+        return (
+            f"<div class='kpi' style='background:{bg}; border-left: 5px solid {accent};'>"
+            f"<div class='kpi-value' style='color:{accent};'>{value}</div>"
+            f"<div class='kpi-label' style='color:{text_color};'>{label}</div></div>"
+        )
+
+    kpi_row = (
+        "<div class='kpi-row'>"
+        + kpi("Total Work Items",  total,          "#EEF2FF", "#4F46E5", "#3730A3")
+        + kpi("Pending",           pending_count,  "#FFF7ED", "#EA580C", "#9A3412")
+        + kpi("Returned",          returned_count, "#F0FDF4", "#16A34A", "#166534")
+        + kpi("Avg Days Pending",  avg_days,       "#FFF1F2", "#E11D48", "#9F1239")
+        + "</div>"
+    )
+
+    if 'Current status' in filtered_df.columns:
+        status_tbl = df_to_html_table(
+            filtered_df['Current status'].value_counts()
+            .rename_axis('Status').reset_index(name='Count')
+        )
+    else:
+        status_tbl = "<p>No status data available.</p>"
+
+    if 'Department' in filtered_df.columns and DAYS_COL in filtered_df.columns:
+        dept_tbl = df_to_html_table(
+            filtered_df.groupby('Department')[DAYS_COL]
+            .agg(['mean', 'count']).round(2)
+            .rename(columns={'mean': 'Avg Days Pending', 'count': 'Total Cases'})
+            .sort_values('Avg Days Pending', ascending=False)
+            .reset_index()
+        )
+    else:
+        dept_tbl = "<p>No department data available.</p>"
+
+    if 'Finance SSO' in filtered_df.columns:
+        sso_tbl = df_to_html_table(
+            filtered_df['Finance SSO'].value_counts()
+            .rename_axis('Finance SSO').reset_index(name='Count')
+        )
+    else:
+        sso_tbl = "<p>No Finance SSO data available.</p>"
+
+    if critical_df.empty:
+        critical_html = "<p style='color:#16A34A; font-weight:bold; font-size:10pt;'>No critical cases found.</p>"
+    else:
+        critical_html = ""
+        sso_list = (
+            critical_df['Finance SSO'].dropna().unique().tolist()
+            if 'Finance SSO' in critical_df.columns else [None]
+        )
+        for sso in sso_list:
+            sso_data = (
+                critical_df[critical_df['Finance SSO'] == sso]
+                if sso is not None else critical_df
+            )
+            label = sso if sso else "Unknown SSO"
+            critical_html += f"""
+            <div class="sso-block">
+              <h3 class="sso-title">Finance SSO: {label}
+                <span class="sso-count">({len(sso_data)} case{'s' if len(sso_data) != 1 else ''})</span>
+              </h3>
+              {df_to_html_table(sso_data)}
+            </div>"""
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {{
+    size: A3 landscape;
+    margin: 12mm 10mm;
+  }}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 9pt;
+    color: #1e1e2e;
+    background: #f8f9ff;
+  }}
+
+  /* ── Header ── */
+  .report-header {{
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b5bdb 50%, #6d28d9 100%);
+    color: white;
+    padding: 18px 24px;
+    border-radius: 10px;
+    margin-bottom: 18px;
+    text-align: center;
+    border-bottom: 4px solid #f59e0b;
+  }}
+  .report-header h1 {{ font-size: 18pt; margin-bottom: 5px; letter-spacing: 0.5px; }}
+  .report-header p  {{ font-size: 9pt; opacity: 0.85; }}
+
+  /* ── KPI row ── */
+  .kpi-row {{
+    display: flex;
+    gap: 12px;
+    margin-bottom: 18px;
+  }}
+  .kpi {{
+    flex: 1;
+    border-radius: 8px;
+    padding: 14px 16px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+    border-left-width: 5px;
+  }}
+  .kpi-value {{ font-size: 20pt; font-weight: bold; }}
+  .kpi-label {{ font-size: 8pt; margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }}
+
+  /* ── Section headings ── */
+  .section {{
+    margin-top: 22px;
+    page-break-inside: avoid;
+    background: white;
+    border-radius: 8px;
+    padding: 14px 16px;
+    border: 1px solid #e2e8f0;
+  }}
+  .section h2 {{
+    font-size: 11pt;
+    padding: 8px 14px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    letter-spacing: 0.3px;
+  }}
+
+  /* Unique header colors per section */
+  .section-status   h2 {{ background: #EEF2FF; color: #3730A3; border-left: 4px solid #4F46E5; }}
+  .section-dept     h2 {{ background: #ECFDF5; color: #065F46; border-left: 4px solid #10B981; }}
+  .section-sso      h2 {{ background: #FFF7ED; color: #9A3412; border-left: 4px solid #F97316; }}
+  .section-critical h2 {{ background: #FFF1F2; color: #9F1239; border-left: 4px solid #F43F5E; }}
+
+  /* ── Tables ── */
+  table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8pt;
+    table-layout: auto;
+  }}
+  thead tr th {{
+    background: #1e3a8a;
+    color: #ffffff;
+    padding: 8px 10px;
+    border: 1px solid #2d4fae;
+    text-align: left;
+    white-space: nowrap;
+    font-size: 8.5pt;
+    letter-spacing: 0.3px;
+  }}
+  tbody tr:nth-child(odd)  td {{ background: #f0f4ff; }}
+  tbody tr:nth-child(even) td {{ background: #ffffff; }}
+  tbody tr td {{
+    padding: 7px 10px;
+    border: 1px solid #d0d7f0;
+    vertical-align: top;
+    word-break: break-word;
+    max-width: 180px;
+    color: #1e293b;
+  }}
+  tbody tr:hover td {{ background: #dbeafe !important; color: #1e3a8a; }}
+
+  /* ── SSO blocks (critical section) ── */
+  .sso-block {{
+    margin-top: 16px;
+    page-break-inside: avoid;
+    border: 1px solid #fecdd3;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #fff8f8;
+  }}
+  .sso-title {{
+    font-size: 10pt;
+    color: #be123c;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }}
+  .sso-count {{
+    font-weight: normal;
+    font-size: 8.5pt;
+    color: #e11d48;
+    background: #ffe4e6;
+    padding: 2px 8px;
+    border-radius: 20px;
+  }}
+
+  /* ── Footer ── */
+  .footer {{
+    margin-top: 30px;
+    text-align: center;
+    font-size: 7.5pt;
+    color: #94a3b8;
+    border-top: 2px dashed #c7d2fe;
+    padding-top: 8px;
+    letter-spacing: 0.3px;
+  }}
+
+  /* ── Critical section table override ── */
+  .section-critical thead tr th {{
+    background: #be123c;
+    border-color: #9f1239;
+  }}
+  .section-critical tbody tr:nth-child(odd)  td {{ background: #fff1f2; }}
+  .section-critical tbody tr:nth-child(even) td {{ background: #ffffff; }}
+  .section-critical tbody tr:hover           td {{ background: #fecdd3 !important; color: #9f1239; }}
+</style>
+</head>
+<body>
+
+  <div class="report-header">
+    <h1>Work Monitoring Dashboard — Report</h1>
+    <p>Generated: {datetime.now().strftime('%d %B %Y, %I:%M %p')}</p>
+  </div>
+
+  {kpi_row}
+
+  <div class="section section-status">
+    <h2>Status Breakdown</h2>
+    {status_tbl}
+  </div>
+
+  <div class="section section-dept">
+    <h2>Department Summary (Avg Days Pending)</h2>
+    {dept_tbl}
+  </div>
+
+  <div class="section section-sso">
+    <h2>Finance SSO Summary</h2>
+    {sso_tbl}
+  </div>
+
+  <div class="section section-critical">
+    <h2>Critical Cases (Days &gt; 45 or Returned Twice)</h2>
+    {critical_html}
+  </div>
+
+  <div class="footer">Work Monitoring Dashboard — Auto-generated Report &nbsp;|&nbsp; Confidential</div>
+
+</body>
+</html>"""
+
+    return html
+# ── Download buttons ──────────────────────────────────────────────────────────
+col_a, col_b = st.columns(2)
+
+with col_a:
+    if st.button("📄 Generate Full Report PDF", use_container_width=True):
+        with st.spinner("Building PDF…"):
+            try:
+                import weasyprint
+                html = build_html_report(filtered_df, total, pending_count, returned_count, avg_days)
+                pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+                st.download_button(
+                    "⬇️ Download Full Report",
+                    data=pdf_bytes,
+                    file_name=f"Work_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+                st.success("✅ PDF ready!")
+            except ImportError:
+                st.error("❌ WeasyPrint not installed. Add `weasyprint` to your requirements.txt")
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
+with col_b:
+    if st.button("📄 Generate Critical Cases PDF", use_container_width=True):
+        with st.spinner("Building PDF…"):
+            try:
+                import weasyprint
+
+                # Critical-cases-only version
+                crit_only = filtered_df[
+                    (filtered_df.get(DAYS_COL, pd.Series(dtype=float)) > 45) |
+                    (filtered_df.get('file Returned more than twice', pd.Series(dtype=str)) == 'Yes')
+                ].copy()
+
+                total_c = len(crit_only)
+                pending_c = crit_only.get('Current status', pd.Series()).str.contains('Pending', case=False, na=False).sum()
+                returned_c = crit_only.get('Current status', pd.Series()).str.contains('Returned', case=False, na=False).sum()
+                avg_c = round(crit_only[DAYS_COL].mean(), 2) if DAYS_COL in crit_only.columns and not crit_only.empty else 0
+
+                html = build_html_report(crit_only, total_c, pending_c, returned_c, avg_c)
+                pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+                st.download_button(
+                    "⬇️ Download Critical Cases Report",
+                    data=pdf_bytes,
+                    file_name=f"Critical_Cases_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+                st.success("✅ PDF ready!")
+            except ImportError:
+                st.error("❌ WeasyPrint not installed. Add `weasyprint` to your requirements.txt")
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
