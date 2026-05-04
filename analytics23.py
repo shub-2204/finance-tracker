@@ -122,7 +122,7 @@ if 'Current status' in filtered_df.columns:
 # -------------------------------
 # CRITICAL CASES
 # -------------------------------
-st.subheader("⚠️ Critical Cases (Days > threshold or Returned more than twice)")
+st.subheader("⚠️ Critical Cases (Days > {threshold} or Returned more than twice)")
 
 RETURNED_COL = 'file Returned more than twice'
 
@@ -399,7 +399,7 @@ def build_html_report(filtered_df, total, pending_count, returned_count, avg_day
     </div>
 
     <div class="section section-critical">
-        <h2>Critical Cases (Days &gt; 45 or Returned Twice)</h2>
+        <h2>Critical Cases (Days &gt; {threshold} or Returned Twice)</h2>
         {critical_html}
     </div>
 
@@ -431,7 +431,7 @@ with col_a:
 
 with col_b:
     if st.button("🌐 Generate Critical Cases HTML", use_container_width=True):
-        d_mask2 = pd.to_numeric(filtered_df[DAYS_COL], errors='coerce').fillna(0) > 45
+        d_mask2 = pd.to_numeric(filtered_df[DAYS_COL], errors='coerce').fillna(0) > threshold
         r_mask2 = (
             filtered_df[RETURNED_COL].fillna('').str.strip().str.lower() == 'yes'
             if RETURNED_COL in filtered_df.columns
