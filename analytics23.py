@@ -51,6 +51,14 @@ status_options = sorted(df['Current status'].dropna().unique().tolist()) if 'Cur
 
 dept = st.sidebar.multiselect("Department", dept_options)
 status = st.sidebar.multiselect("Status", status_options)
+# -------------------------------
+# THRESHOLD FILTER (NEW)
+# -------------------------------
+threshold = st.sidebar.selectbox(
+    "Critical Days Threshold",
+    options=[30, 45],
+    index=1  # default = 45
+)
 
 # -------------------------------
 # FILTERING
@@ -114,11 +122,11 @@ if 'Current status' in filtered_df.columns:
 # -------------------------------
 # CRITICAL CASES
 # -------------------------------
-st.subheader("⚠️ Critical Cases (Days > 45 or Returned more than twice)")
+st.subheader("⚠️ Critical Cases (Days > threshold or Returned more than twice)")
 
 RETURNED_COL = 'file Returned more than twice'
 
-days_mask = pd.to_numeric(filtered_df[DAYS_COL], errors='coerce').fillna(0) > 45
+days_mask = pd.to_numeric(filtered_df[DAYS_COL], errors='coerce').fillna(0) > threshold
 returned_mask = filtered_df[RETURNED_COL].fillna('').str.strip().str.lower() == 'yes' if RETURNED_COL in filtered_df.columns else pd.Series(False, index=filtered_df.index)
 
 critical_df = filtered_df[days_mask | returned_mask]
@@ -154,10 +162,10 @@ def df_to_html_table(data: pd.DataFrame) -> str:
     return f"<table><thead><tr>{headers}</tr></thead><tbody>{rows}</tbody></table>"
 
 
-def build_html_report(filtered_df, total, pending_count, returned_count, avg_days):
+def build_html_report(filtered_df, total, pending_count, returned_count, avg_days,threshold):
 
     # ── Critical df (safe) ──
-    d_mask = pd.to_numeric(filtered_df[DAYS_COL], errors='coerce').fillna(0) > 45
+    d_mask = pd.to_numeric(filtered_df[DAYS_COL], errors='coerce').fillna(0) > threshold
     r_mask = (
         filtered_df[RETURNED_COL].fillna('').str.strip().str.lower() == 'yes'
         if RETURNED_COL in filtered_df.columns
@@ -411,7 +419,7 @@ col_a, col_b = st.columns(2)
 
 with col_a:
     if st.button("🌐 Generate Full Report HTML", use_container_width=True):
-        html = build_html_report(filtered_df, total, pending_count, returned_count, avg_days)
+        html = build_html_report(filtered_df, total, pending_count, returned_count, avg_days,threshold)
         st.download_button(
             "⬇️ Download Full Report (HTML)",
             data=html,
