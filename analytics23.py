@@ -443,7 +443,7 @@ with col_b:
         returned_c = crit_only['Current status'].str.contains('Returned', case=False, na=False).sum() if 'Current status' in crit_only.columns else 0
         avg_c      = round(crit_only[DAYS_COL].mean(), 2) if not crit_only.empty else 0
 
-        html = build_html_report(crit_only, total_c, pending_c, returned_c, avg_c)
+        html = build_html_report(crit_only, total_c, pending_c, returned_c, avg_c,threshold)
         st.download_button(
             "⬇️ Download Critical Cases (HTML)",
             data=html,
