@@ -122,7 +122,7 @@ if 'Current status' in filtered_df.columns:
 # -------------------------------
 # CRITICAL CASES
 # -------------------------------
-st.subheader("⚠️ Critical Cases (Days > {threshold} or Returned more than twice)")
+st.subheader(f"⚠️ Critical Cases (Days > {threshold} or Returned more than twice)")
 
 RETURNED_COL = 'file Returned more than twice'
 
