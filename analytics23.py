@@ -46,11 +46,19 @@ else:
 # -------------------------------
 st.sidebar.header("Filters")
 
+# Existing filters
 dept_options = sorted(df['Department'].dropna().unique().tolist()) if 'Department' in df.columns else []
 status_options = sorted(df['Current status'].dropna().unique().tolist()) if 'Current status' in df.columns else []
 
+# New filters
+activity_options = sorted(df['Activity'].dropna().unique().tolist()) if 'Activity' in df.columns else []
+work_type_options = sorted(df['Type of work'].dropna().unique().tolist()) if 'Type of work' in df.columns else []
+
+# Sidebar widgets
 dept = st.sidebar.multiselect("Department", dept_options)
 status = st.sidebar.multiselect("Status", status_options)
+activity = st.sidebar.multiselect("Activity", activity_options)
+work_type = st.sidebar.multiselect("Type of Work", work_type_options)
 # -------------------------------
 # THRESHOLD FILTER (NEW)
 # -------------------------------
@@ -68,6 +76,12 @@ if dept and 'Department' in filtered_df.columns:
     filtered_df = filtered_df[filtered_df['Department'].isin(dept)]
 if status and 'Current status' in filtered_df.columns:
     filtered_df = filtered_df[filtered_df['Current status'].isin(status)]
+if activity:
+    filtered_df = filtered_df[filtered_df["Activity"].isin(activity)]
+if work_type:
+    filtered_df = filtered_df[
+        filtered_df["Type of work"].isin(work_type)
+    ]
 
 if filtered_df.empty:
     st.warning("No records match your filters. Showing all data.")
