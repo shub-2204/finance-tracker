@@ -52,7 +52,7 @@ status_options = sorted(df['Current status'].dropna().unique().tolist()) if 'Cur
 
 # New filters
 activity_options = sorted(df['Activity'].dropna().unique().tolist()) if 'Activity' in df.columns else []
-work_type_options = sorted(df['Type of work'].dropna().unique().tolist()) if 'Type of work' in df.columns else []
+work_type_options = sorted(df['Type of Work'].dropna().unique().tolist()) if 'Type of Work' in df.columns else []
 
 # Sidebar widgets
 dept = st.sidebar.multiselect("Department", dept_options)
@@ -79,7 +79,7 @@ if status and 'Current status' in filtered_df.columns:
 if activity:
     filtered_df = filtered_df[filtered_df["Activity"].isin(activity)]
 if work_type:
-    filtered_df = filtered_df[filtered_df["Type of work"].isin(work_type)]
+    filtered_df = filtered_df[filtered_df["Type of Work"].isin(work_type)]
 
 if filtered_df.empty:
     st.warning("No records match your filters. Showing all data.")
